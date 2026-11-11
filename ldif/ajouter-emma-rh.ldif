@@ -1,0 +1,4 @@
+dn: cn=rh,ou=groups,dc=polycorp,dc=test
+changetype: modify
+add: member
+member: uid=emma,ou=people,dc=polycorp,dc=test

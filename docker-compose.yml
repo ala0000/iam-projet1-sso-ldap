@@ -1,0 +1,71 @@
+name: iam-projet1
+
+services:
+  ldap:
+    image: osixia/openldap:1.5.0
+    container_name: ldap
+    environment:
+      LDAP_ORGANISATION: "Polycorp"
+      LDAP_DOMAIN: "polycorp.test"
+      LDAP_ADMIN_PASSWORD: "Admin#2026"
+      LDAP_READONLY_USER: "true"
+      LDAP_READONLY_USER_USERNAME: "svc-keycloak"
+      LDAP_READONLY_USER_PASSWORD: "Readonly#2026"
+    ports:
+      - "389:389"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_conf:/etc/ldap/slapd.d
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+    depends_on:
+      - ldap
+
+  sp-saml:
+    build: ./apps
+    image: iam-apps:1.0
+    command: gunicorn -b 0.0.0.0:8000 -w 1 --threads 4 sp_saml:app
+    environment:
+      SP_BASE: http://localhost:8181
+    ports:
+      - "127.0.0.1:8181:8000"
+
+  client-oauth:
+    build: ./apps
+    image: iam-apps:1.0
+    command: gunicorn -b 0.0.0.0:8000 -w 1 --threads 4 client_oauth:app
+    environment:
+      KC_PUBLIC: http://localhost:8080/realms/polycorp
+      KC_INTERNE: http://keycloak:8080/realms/polycorp
+      CLIENT_BASE: http://localhost:8182
+      API_INTERNE: http://api-notes:8000
+    ports:
+      - "127.0.0.1:8182:8000"
+
+  api-notes:
+    build: ./apps
+    image: iam-apps:1.0
+    command: gunicorn -b 0.0.0.0:8000 -w 1 --threads 4 api_notes:app
+    environment:
+      KC_ISSUER: http://localhost:8080/realms/polycorp
+      KC_INTERNE: http://keycloak:8080/realms/polycorp
+      API_AUDIENCE: api-notes
+    ports:
+      - "127.0.0.1:8183:8000"
+
+volumes:
+  ldap_data:
+  ldap_conf:
+  keycloak_data:
